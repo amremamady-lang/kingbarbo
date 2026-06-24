@@ -1,0 +1,11 @@
+.vercel
+node_modules/
+package.json
+package-lock.json
+# test-/debugartefacten
+*.decoded.txt
+shot-*.png
+m-*.png
+hdr-*.png
+test-*.png
+open*.png
