@@ -42,9 +42,13 @@
       var bg = getComputedStyle(res).backgroundColor;
       if (!isTransparent(bg)) accent = bg;
     }
+    var an = accent.indexOf('#') === 0
+      ? [parseInt(accent.substr(1, 2), 16), parseInt(accent.substr(3, 2), 16), parseInt(accent.substr(5, 2), 16)]
+      : (accent.match(/\d+/g) || [201, 162, 75]).map(Number);
     theme = {
       dark: dark,
       accent: accent,
+      ring: 'rgba(' + an[0] + ',' + an[1] + ',' + an[2] + ',0.55)',
       panelBg: dark ? 'rgba(12,12,12,0.985)' : 'rgba(250,249,245,0.985)',
       text: dark ? '#efe6d6' : '#17130D',
       line: dark ? 'rgba(201,162,75,0.22)' : 'rgba(23,19,13,0.12)',
@@ -93,6 +97,22 @@
       '  #uren [style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr !important;gap:18px !important}',
       // Contact: put the Marnixplaats block below the "Kom langs"/Reserveren block.
       '  #contact[style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr !important}',
+      '}',
+
+      // ---- hover states (desktop / real pointers only) ----
+      '@media (hover:hover){',
+      '  #dc-root button{transition:transform .16s ease,box-shadow .25s ease,filter .2s ease,background-color .2s ease,border-color .2s ease !important}',
+      '  #dc-root button:hover{transform:translateY(-2px) !important;filter:brightness(1.06) !important;box-shadow:0 0 0 2px ' + t.ring + ',0 10px 24px rgba(0,0,0,.30) !important}',
+      '  #dc-root button:active{transform:translateY(0) !important}',
+      '  #dc-root a.kb-link{transition:color .2s ease !important}',
+      '  #dc-root a.kb-link:hover{color:' + t.accent + ' !important}',
+      '  #kb-panel a:hover,#kb-panel .kb-lang:hover{color:' + t.accent + ' !important}',
+      '}',
+
+      // ---- scroll reveal ----
+      '@media (prefers-reduced-motion:no-preference){',
+      '  .kb-reveal{opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.2,.6,.2,1),transform .7s cubic-bezier(.2,.6,.2,1)}',
+      '  .kb-reveal.kb-in{opacity:1;transform:none}',
       '}'
     ].join('\n');
     (document.head || document.documentElement).appendChild(s);
@@ -139,14 +159,79 @@
     }
   }
 
+  // Embed a Google map of the location into the "Marnixplaats" placeholder block.
+  function ensureMap() {
+    var block = document.querySelector('#contact > :last-child');
+    if (!block || block.querySelector('#kb-map')) return;
+    block.style.position = 'relative';
+    block.style.minHeight = '320px';
+    block.style.overflow = 'hidden';
+    var w = document.createElement('div');
+    w.id = 'kb-map';
+    w.style.cssText = 'position:absolute;inset:0;z-index:1';
+    var f = document.createElement('iframe');
+    f.src = 'https://www.google.com/maps?q=Marnixplaats,2000+Antwerpen&z=15&output=embed';
+    f.loading = 'lazy';
+    f.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
+    f.setAttribute('title', 'Kaart — Marnixplaats, het Zuid in Antwerpen');
+    f.style.cssText = 'width:100%;height:100%;border:0;display:block';
+    w.appendChild(f);
+    block.appendChild(w);
+  }
+
+  // Tweak the location wording site-wide.
+  function fixText() {
+    var rx = /in het Zuid van Antwerpen/g;
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    var n;
+    while ((n = walker.nextNode())) {
+      if (rx.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace(rx, 'op het Zuid in Antwerpen');
+    }
+  }
+
+  // Reveal-on-scroll for headings, paragraphs and price rows.
+  var revealDone = false, revealLast = -1;
+  function ensureReveal() {
+    if (revealDone) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) { revealDone = true; return; }
+    var root = document.getElementById('dc-root');
+    if (!root) return;
+    var nodes = [].slice.call(root.querySelectorAll('h1,h2,h3,p,[style*="grid-template-columns: 1fr auto"]')).filter(function (el) {
+      return el.textContent.trim() && !el.closest('nav') && !el.closest('#kb-panel');
+    });
+    // wait until the rendered count is sizeable AND stable across two ticks
+    if (nodes.length < 8 || nodes.length !== revealLast) { revealLast = nodes.length; return; }
+    revealDone = true;
+    if (!('IntersectionObserver' in window)) return;   // no hiding without an observer
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('kb-in'); io.unobserve(e.target); }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+    var perSection = new Map();
+    nodes.forEach(function (el) {
+      var sec = el.closest('section') || root;
+      var i = perSection.get(sec) || 0;
+      perSection.set(sec, i + 1);
+      el.style.transitionDelay = Math.min(i * 70, 350) + 'ms';
+      el.classList.add('kb-reveal');
+      io.observe(el);
+    });
+    // safety net: nothing stays hidden indefinitely
+    setTimeout(function () { nodes.forEach(function (el) { el.classList.add('kb-in'); }); }, 9000);
+  }
+
   function ensure() {
     if (!document.documentElement) return;
     ensureHead();
     if (!document.body) return;
+    fixText();
     if (!getTheme()) return;          // wait until the nav (and theme) is ready
     ensureStyle();
     ensureHamb();
     ensurePanel();
+    ensureMap();
+    ensureReveal();
   }
 
   // ---- open / close -------------------------------------------------------
