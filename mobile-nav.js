@@ -83,6 +83,16 @@
       '  #kb-panel .kb-lang{padding:9px 16px;border:1px solid ' + t.line + ';background:transparent;color:' + t.text + ';border-radius:6px;cursor:pointer;font-size:15px;font-family:inherit}',
       '  #kb-panel .kb-lang.kb-active{background:' + t.accent + ';color:' + t.resText + ';border-color:' + t.accent + '}',
       '  #kb-panel .kb-res{flex:1;padding:15px;border:0;border-radius:8px;background:' + t.accent + ';color:' + t.resText + ';font-size:16px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:.5px}',
+      // --- mobile layout fixes: collapse 2-column sections to a single column ---
+      // About (royal: photo | text) -> stack, and move the photo BELOW the text.
+      '  [style*="grid-template-columns: 1fr 1fr; gap: 0px"]{grid-template-columns:1fr !important;gap:22px !important}',
+      '  [style*="grid-template-columns: 1fr 1fr; gap: 0px"] > *:first-child{order:2 !important}',
+      // About (light: heading | paragraph) -> stack.
+      '  [style*="grid-template-columns: 0.9fr 1.1fr"]{grid-template-columns:1fr !important;gap:18px !important}',
+      // Opening hours: stack "Op afspraak" and "Vrije inloop" cards.
+      '  #uren [style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr !important;gap:18px !important}',
+      // Contact: put the Marnixplaats block below the "Kom langs"/Reserveren block.
+      '  #contact[style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr !important}',
       '}'
     ].join('\n');
     (document.head || document.documentElement).appendChild(s);
@@ -114,7 +124,24 @@
     document.body.appendChild(p);
   }
 
+  // The bundler rebuilds <head>, wiping the static <title>/favicon — so set
+  // them from JS too and re-apply on each tick until things settle.
+  var TITLE = 'King Barbo — Barbershop Antwerpen Zuid';
+  function ensureHead() {
+    if (document.title !== TITLE) document.title = TITLE;
+    if (!document.getElementById('kb-fav')) {
+      var l = document.createElement('link');
+      l.id = 'kb-fav';
+      l.rel = 'icon';
+      l.type = 'image/svg+xml';
+      l.href = '/favicon.svg';
+      (document.head || document.documentElement).appendChild(l);
+    }
+  }
+
   function ensure() {
+    if (!document.documentElement) return;
+    ensureHead();
     if (!document.body) return;
     if (!getTheme()) return;          // wait until the nav (and theme) is ready
     ensureStyle();
